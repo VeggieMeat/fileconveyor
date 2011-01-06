@@ -1,6 +1,7 @@
 This is a fork of the excellent fileconveyor by wimleers which allows the
-synced_files table to be stored either with either sqlite3 or MySQLdb as the
-backend. This can be configured in settings.py.
+synced_files table to be stored with either sqlite3 or MySQLdb as the
+backend. This can be configured in settings.py. The default settings make this
+behave just like the original.
 
 I was working on optimizing a high-traffic website by balancing web traffic
 across several homogeneous web servers and needed a central place
