@@ -1,14 +1,17 @@
-This is a fork of the excellent fileconveyor by wimleers which replaces the
-Sqlite backend for the synced_files table with a MySQL backend.
+This is a fork of the excellent fileconveyor by wimleers which allows the
+synced_files table to be stored either with either sqlite3 or MySQLdb as the
+backend. This can be configured in settings.py.
 
-I was working on optimizing a high-traffic website and needed a central place
+I was working on optimizing a high-traffic website by balancing web traffic
+across several homogeneous web servers and needed a central place
 to store user generated content instead of trying to copy it around to a bunch
-of webservers. Fileconveyor works great for sending uploaded file to an FTP
-server but then it would only be aware of it's own synced files and not those
-synced from other webservers.
+of web servers. Fileconveyor works great for sending uploaded files to an FTP
+server but then it would only be aware of the file it synced and not those
+synced from other web servers.
 
-I look forward to abstracting the synced_tables functionality to allow for
-switching between the two backends using only the config file.
+Perhaps in the future the interactions with the synced_files table could be
+moved into an abstract class? Then new backends could easily be added by sub-
+classing and the backend could even be configured via config.xml!
 
-Changes were also made to the Drupal CDN module so that it would query the
-synced_files table in MySQL rather than Sqlite.
+The Drupal CDN module was also forked and modified to query MySQL for
+synced_files but I didn't do that so I don't have the changes...

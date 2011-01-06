@@ -247,12 +247,14 @@ class Arbitrator(threading.Thread):
 
         # Create connection to synced files DB.
         if SYNCED_FILES_BACKEND == 'sqlite':
+            from sqlite3 import IntegrityError
             self.dbcon = sqlite3.connect(SYNCED_FILES_DB)
             self.dbcur = self.dbcon.cursor()
             self.dbcur.execute("CREATE TABLE IF NOT EXISTS %s (input_file text, transported_file_basename text, url text, server text)" % (SYNCED_FILES_TABLE))
             self.dbcur.execute("CREATE UNIQUE INDEX IF NOT EXISTS file_unique_per_server ON %s (input_file, server)" % (SYNCED_FILES_TABLE))
         elif SYNCED_FILES_BACKEND == 'mysql':
             import MySQLdb
+            from MySQLdb import IntegrityError
             self.dbcon = MySQLdb.connect(host=SYNCED_FILES_HOST, user=SYNCED_FILES_USER, passwd=SYNCED_FILES_PASS, db=SYNCED_FILES_DB)
             self.dbcur = self.dbcon.cursor()
             self.dbcur.execute("CREATE TABLE IF NOT EXISTS %s (input_file VARCHAR(2048), transported_file_basename VARCHAR(2048), url VARCHAR(2048), server VARCHAR(255), UNIQUE INDEX file_unique_per_server (input_file (512), server))" % (SYNCED_FILES_TABLE))
@@ -416,7 +418,7 @@ class Arbitrator(threading.Thread):
                         # Look up the transported file's base name. This might
                         # be different from the input file's base name due to
                         # processing.
-                        self.dbcur.execute("SELECT transported_file_basename FROM %s WHERE input_file=?" % (SYNCED_FILES_TABLE), (input_file, ))
+                        self.dbcur.execute("SELECT transported_file_basename FROM %s WHERE input_file=%%s" % (SYNCED_FILES_TABLE), (input_file, ))
                         result = self.dbcur.fetchone()
 
                     if event == FSMonitor.DELETED and not result is None:
@@ -460,7 +462,7 @@ class Arbitrator(threading.Thread):
                                     # and reinserted into the database, which
                                     # will cause a IntegrityError).
                                     if event == FSMonitor.CREATED:
-                                        self.dbcur.execute("SELECT COUNT(*) FROM %s WHERE input_file=? AND server=?" % (SYNCED_FILES_TABLE), (input_file, server))
+                                        self.dbcur.execute("SELECT COUNT(*) FROM %s WHERE input_file=%%s AND server=%%s" % (SYNCED_FILES_TABLE), (input_file, server))
                                         file_is_synced = self.dbcur.fetchone()[0] == 1
                                     if event == FSMonitor.CREATED and file_is_synced:
                                         self.logger.info("Filtering: not processing '%s' for server '%s', because it has been synced already to this server (rule: '%s')." % (input_file, server, rule["label"]))
@@ -628,29 +630,30 @@ class Arbitrator(threading.Thread):
             self.lock.acquire()
             (input_file, event, rule, processed_for_server, output_file, transported_file, url, server) = self.db_queue.get()
             self.lock.release()
-
+            
             # Commit the result to the database.            
             remove_server_from_remaining_transporters = True
             transported_file_basename = os.path.basename(output_file)
+            
             if event == FSMonitor.CREATED:
                 try:
-                    self.dbcur.execute("INSERT INTO %s VALUES(?, ?, ?, ?)" % (SYNCED_FILES_TABLE), (input_file, transported_file_basename, url, server))
+                    self.dbcur.execute("INSERT INTO %s VALUES(%%s, %%s, %%s, %%s)" % (SYNCED_FILES_TABLE), (input_file, transported_file_basename, url, server))
                     self.dbcon.commit()
-                except sqlite3.IntegrityError, e:
+                except IntegrityError, e:
                     self.logger.critical("Database integrity error: %s. Duplicate key: input_file = '%s', server = '%s'." % (e, input_file, server))
             elif event == FSMonitor.MODIFIED:
-                self.dbcur.execute("SELECT COUNT(*) FROM %s WHERE input_file=? AND server=?" % (SYNCED_FILES_TABLE), (input_file, server))
+                self.dbcur.execute("SELECT COUNT(*) FROM %s WHERE input_file=%%s AND server=%%s" % (SYNCED_FILES_TABLE), (input_file, server))
                 if self.dbcur.fetchone()[0] > 0:
 
                     # Look up the transported file's base name. This
                     # might be different from the input file's base
                     # name due to processing.
-                    self.dbcur.execute("SELECT transported_file_basename FROM %s WHERE input_file=? AND server=?" % (SYNCED_FILES_TABLE), (input_file, server))
+                    self.dbcur.execute("SELECT transported_file_basename FROM %s WHERE input_file=%%s AND server=%%s" % (SYNCED_FILES_TABLE), (input_file, server))
                     old_transport_file_basename = self.dbcur.fetchone()[0]
 
                     # Update the transported_file_basename and url fields for
                     # the input_file that has been transported.
-                    self.dbcur.execute("UPDATE %s SET transported_file_basename=?, url=? WHERE input_file=? AND server=?" % (SYNCED_FILES_TABLE), (transported_file_basename, url, input_file, server))
+                    self.dbcur.execute("UPDATE %s SET transported_file_basename=%%s, url=%%s WHERE input_file=%%s AND server=%%s" % (SYNCED_FILES_TABLE), (transported_file_basename, url, input_file, server))
                     self.dbcon.commit()
                     
                     # If a file was modified that had already been synced
@@ -679,10 +682,10 @@ class Arbitrator(threading.Thread):
                         self.transport_queue[server].jump((input_file, pseudo_event, rule, Arbitrator.PROCESSED_FOR_ANY_SERVER, fake_output_file))
                         self.logger.info("DB queue -> transport queue (jumped): '%s' to delete its old transported file '%s' on server '%s'." % (input_file, old_transport_file_basename, server))
                 else:
-                    self.dbcur.execute("INSERT INTO %s VALUES(?, ?, ?, ?)" % (SYNCED_FILES_TABLE), (input_file, transported_file_basename, url, server))
+                    self.dbcur.execute("INSERT INTO %s VALUES(%%s, %%s, %%s, %%s)" % (SYNCED_FILES_TABLE), (input_file, transported_file_basename, url, server))
                     self.dbcon.commit()
             elif event == FSMonitor.DELETED:
-                self.dbcur.execute("DELETE FROM %s WHERE input_file=? AND server=?" % (SYNCED_FILES_TABLE), (input_file, server))
+                self.dbcur.execute("DELETE FROM %s WHERE input_file=%%s AND server=%%s" % (SYNCED_FILES_TABLE), (input_file, server))
                 self.dbcon.commit()
             elif event == Arbitrator.DELETE_OLD_FILE:
                 # This is a pseudo-event. See the comments for the
