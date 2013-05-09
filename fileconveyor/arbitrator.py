@@ -254,7 +254,7 @@ class Arbitrator(threading.Thread):
             from MySQLdb import IntegrityError
             self.dbcon = MySQLdb.connect(host=SYNCED_FILES_HOST, user=SYNCED_FILES_USER, passwd=SYNCED_FILES_PASS, db=SYNCED_FILES_DB)
             self.dbcur = self.dbcon.cursor()
-            self.dbcur.execute("CREATE TABLE IF NOT EXISTS %s (input_file VARCHAR(2048), transported_file_basename VARCHAR(2048), url VARCHAR(2048), server VARCHAR(255), UNIQUE INDEX file_unique_per_server (input_file (512), server))" % (SYNCED_FILES_TABLE))
+            self.dbcur.execute("CREATE TABLE IF NOT EXISTS %s (input_file VARCHAR(255), transported_file_basename VARCHAR(255), url VARCHAR(255), server VARCHAR(255), UNIQUE INDEX file_unique_per_server (input_file (255), server))" % (SYNCED_FILES_TABLE))
         else:
             self.logger.warning("Unknown SYNCED_FILES_BACKEND value")
         self.dbcon.commit()
